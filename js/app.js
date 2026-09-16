@@ -13,18 +13,23 @@ function geometryCenter(f){const ring=polygonRings(f)[0];return ring?.length?cen
 function belongsToHole18(f){const h=f?.properties?.holes;return Array.isArray(h)&&h.map(Number).includes(18)}
 function getFeatures(type,source=geojson){return(source.features||[]).filter(f=>featureType(f)===type)}
 function polyToScreen(f){const ring=polygonRings(f)[0];return ring?ring.map(([lng,lat])=>{const p=projection.project({lat,lng});return[p.x,p.y]}):[]}
+function corridorDistanceYards(p,a,b){const lat0=(a.lat+b.lat)/2*Math.PI/180;const sx=111320*Math.cos(lat0),sy=110540;const bx=(b.lng-a.lng)*sx,by=(b.lat-a.lat)*sy,px=(p.lng-a.lng)*sx,py=(p.lat-a.lat)*sy;const den=bx*bx+by*by||1;const t=Math.max(0,Math.min(1,(px*bx+py*by)/den));const dx=px-t*bx,dy=py-t*by;return Math.hypot(dx,dy)*1.0936133}
 function deriveHole18(){
   const exact=(geojson.features||[]).filter(belongsToHole18);
   if(!exact.length)throw Error('Local GeoJSON contains no features tagged for Hole 18');
-  const greens=exact.filter(f=>featureType(f)==='green'),tees=exact.filter(f=>featureType(f)==='tee');
+  const greens=exact.filter(f=>featureType(f)==='green').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c);
+  const tees=exact.filter(f=>featureType(f)==='tee').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c);
   if(!greens.length)throw Error('Hole 18 has no Green feature in local GeoJSON');
   if(!tees.length)throw Error('Hole 18 has no Tee feature in local GeoJSON');
-  const greenCenters=greens.map(geometryCenter).filter(Boolean);pin=greenCenters[0];
-  const teeCenters=tees.map(geometryCenter).filter(Boolean);if(!pin||!teeCenters.length)throw Error('Hole 18 tee/green geometry could not be read');
-  // The black tee is the rearmost mapped tee: choose the tee farthest from the green.
-  tee=teeCenters.sort((a,b)=>distanceYards(b,pin)-distanceYards(a,pin))[0];
-  // Use exact Hole 18 membership. This prevents the other 17 holes from shrinking the map.
-  const drawable=exact.filter(f=>['rough','fairway','green','tee','bunker','water'].includes(featureType(f)));
+  // Some source polygons are tagged to more than one nearby hole. Pick the tee/green pair
+  // whose straight-line length best matches the official 494-yard black-tee hole.
+  let best=null;
+  for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c);if(d<300||d>560)continue;const score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}
+  if(!best){for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c);const score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}}
+  tee=best.t.c;pin=best.g.c;
+  // Keep only terrain in the Hole 18 playing corridor. This removes adjacent-hole features
+  // that share the source's Hole 18 tag while preserving nearby bunkers and water.
+  const drawable=exact.filter(f=>{const type=featureType(f);if(!['rough','fairway','green','tee','bunker','water'].includes(type))return false;const c=geometryCenter(f);if(!c)return false;if(f===best.t.f||f===best.g.f)return true;return corridorDistanceYards(c,tee,pin)<=125&&distanceYards(c,tee)<=620&&distanceYards(c,pin)<=620});
   return{tee,pin,features:drawable};
 }
 function updateStrokeUI(){$('strokeRow').textContent=`Shot ${strokeCount+1} · Par ${course.par}`;$('strokeInput').value=strokeCount}
