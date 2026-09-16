@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caddie — shot planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Libre+Franklin:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F1EEE4;
+    --ink:#20241F;
+    --ink-soft:#565F52;
+    --rough:#41603A;
+    --rough-dark:#345031;
+    --fairway:#8AAE63;
+    --green-surface:#B9D68C;
+    --sand:#D8C48A;
+    --water:#3E6E8E;
+    --accent:#C77B2E;
+    --card:#FFFFFF;
+    --line:#D8D3C2;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Libre Franklin',sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:28px 16px 60px;
+  }
+  .wrap{width:100%;max-width:460px;}
+  h1{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:2rem;
+    line-height:1.05;
+    margin:0 0 4px;
+  }
+  .sub{
+    color:var(--ink-soft);
+    font-size:0.95rem;
+    margin:0 0 20px;
+    max-width:34ch;
+  }
+  .map-card{
+    background:var(--rough-dark);
+    border-radius:14px;
+    padding:10px;
+    box-shadow:0 1px 0 rgba(0,0,0,0.05);
+  }
+  svg{width:100%;height:auto;display:block;border-radius:8px;cursor:crosshair;touch-action:manipulation;}
+  .hint{
+    text-align:center;
+    font-size:0.82rem;
+    color:var(--ink-soft);
+    margin:10px 0 22px;
+  }
+  .panel{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:18px 18px 6px;
+    margin-bottom:16px;
+  }
+  .stroke-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    font-size:0.82rem;
+    color:var(--ink-soft);
+    margin-bottom:10px;
+  }
+  .stroke-field{
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .stroke-field input{
+    width:48px;
+    text-align:right;
+    font-family:'Libre Franklin',sans-serif;
+    font-size:0.88rem;
+    padding:4px 6px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  .rec{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    padding-bottom:14px;
+    margin-bottom:14px;
+    border-bottom:1px solid var(--line);
+  }
+  .rec-club{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.5rem;
+  }
+  .rec-yards{
+    font-size:0.95rem;
+    color:var(--ink-soft);
+  }
+  .rec-yards b{color:var(--ink);font-weight:600;}
+  .status{
+    font-size:0.88rem;
+    color:var(--accent);
+    padding-bottom:14px;
+    margin-top:-8px;
+  }
+  .clubs{
+    display:grid;
+    grid-template-columns:1fr auto;
+    row-gap:10px;
+    column-gap:14px;
+    padding-bottom:16px;
+  }
+  .clubs label{
+    font-size:0.92rem;
+    align-self:center;
+  }
+  .clubs input{
+    width:64px;
+    text-align:right;
+    font-family:'Libre Franklin',sans-serif;
+    font-size:0.92rem;
+    padding:6px 8px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    background:var(--paper);
+    color:var(--ink);
+  }
+  button{
+    width:100%;
+    padding:12px;
+    border:none;
+    border-radius:10px;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Libre Franklin',sans-serif;
+    font-size:0.95rem;
+    font-weight:500;
+    cursor:pointer;
+    margin-bottom:14px;
+  }
+  button:hover{opacity:0.9;}
+  button.secondary{
+    background:var(--card);
+    color:var(--ink);
+    border:1px solid var(--line);
+  }
+  .btn-row{
+    display:flex;
+    gap:10px;
+  }
+  .btn-row button{margin-bottom:14px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Line to the pin</h1>
+  <p class="sub">Tap where your ball lands. The target and club adjust from there.</p>
+
+  <div class="map-card">
+    <svg id="hole" viewBox="0 0 300 460" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="300" height="460" fill="var(--rough)"/>
+      <path id="fairway" d="M130,450 C110,380 90,330 95,290 C100,240 145,220 150,190
+                             C155,160 120,140 120,110 C120,90 135,72 150,60
+                             C165,72 180,90 180,110 C180,140 145,160 150,190
+                             C155,220 200,240 205,290 C210,330 190,380 170,450 Z"
+            fill="var(--fairway)" stroke="none"/>
+      <polygon id="water" points="200,300 260,290 255,220 205,225" fill="var(--water)"/>
+      <polygon id="bunker1" points="108,92 130,85 128,112 106,114" fill="var(--sand)"/>
+      <polygon id="bunker2" points="172,90 195,94 192,117 170,113" fill="var(--sand)"/>
+      <circle id="greenSurface" cx="150" cy="60" r="26" fill="var(--green-surface)"/>
+      <line id="shotLine" x1="150" y1="440" x2="150" y2="60" stroke="var(--accent)" stroke-width="1.4" stroke-dasharray="4 4" opacity="0.85"/>
+      <circle id="targetDot" cx="150" cy="60" r="4.5" fill="var(--accent)" stroke="var(--paper)" stroke-width="1"/>
+      <rect x="144" y="435" width="12" height="10" fill="#8A6A3E" id="teeMarker"/>
+      <circle id="pin" cx="150" cy="55" r="2.2" fill="var(--ink)"/>
+      <circle id="ball" cx="150" cy="440" r="5" fill="#FFFFFF" stroke="var(--ink)" stroke-width="1.3"/>
+    </svg>
+  </div>
+  <p class="hint">Par 4 · tee to pin, roughly 385 yards</p>
+
+  <div class="panel">
+    <div class="stroke-row">
+      <span id="strokeRow">Shot 1 · Par 4</span>
+      <label class="stroke-field">
+        Strokes
+        <input type="number" id="strokeInput" min="0" value="0">
+      </label>
+    </div>
+    <div class="rec">
+      <div>
+        <div class="rec-club" id="recClub">Driver</div>
+        <div class="rec-yards"><b id="shotYards">230</b> yard shot</div>
+      </div>
+      <div class="rec-yards"><b id="remainYards">385</b> to pin</div>
+    </div>
+    <div class="status" id="statusLine" style="display:none;"></div>
+  </div>
+
+  <div class="panel">
+    <div class="clubs" id="clubInputs"></div>
+  </div>
+
+  <div class="btn-row">
+    <button id="holedBtn" class="secondary">Holed out</button>
+    <button id="resetBtn" class="secondary">Reset to tee</button>
+  </div>
+</div>
+
+<script>
+const PIN = {x:150, y:55};
+const GREEN = {x:150, y:60, r:26};
+const TEE = {x:150, y:440};
+
+const HAZARDS = [
+  {name:'the water', poly:[[200,300],[260,290],[255,220],[205,225]]},
+  {name:'a bunker', poly:[[108,92],[130,85],[128,112],[106,114]]},
+  {name:'a bunker', poly:[[172,90],[195,94],[192,117],[170,113]]}
+];
+
+let clubs = [
+  {name:'Driver', dist:230},
+  {name:'3-Wood', dist:210},
+  {name:'5-Iron', dist:170},
+  {name:'7-Iron', dist:150},
+  {name:'9-Iron', dist:130},
+  {name:'PW', dist:110},
+  {name:'SW', dist:80}
+];
+
+const PAR = 4;
+let strokeCount = 0;
+let holed = false;
+
+let ball = {x: TEE.x, y: TEE.y};
+
+function scoreLabel(diff){
+  if(diff <= -2) return 'eagle or better';
+  if(diff === -1) return 'birdie';
+  if(diff === 0) return 'par';
+  if(diff === 1) return 'bogey';
+  if(diff === 2) return 'double bogey';
+  return diff + ' over par';
+}
+
+function updateStrokeUI(){
+  document.getElementById('strokeRow').textContent = 'Shot ' + (strokeCount+1) + ' · Par ' + PAR;
+  document.getElementById('strokeInput').value = strokeCount;
+}
+
+function finishHole(finalStrokes){
+  holed = true;
+  strokeCount = finalStrokes;
+  const diff = strokeCount - PAR;
+  document.getElementById('strokeRow').textContent = 'Holed in ' + strokeCount + ' · ' + scoreLabel(diff);
+  document.getElementById('strokeInput').value = strokeCount;
+  document.getElementById('recClub').textContent = 'Holed out';
+  document.getElementById('shotYards').textContent = strokeCount;
+  document.getElementById('shotYards').nextSibling.textContent = ' total strokes';
+  document.getElementById('remainYards').textContent = 0;
+  document.getElementById('statusLine').style.display = 'none';
+  drawTarget(PIN, ball);
+}
+
+function pointInPoly(pt, poly){
+  let inside = false;
+  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
+    const xi=poly[i][0], yi=poly[i][1];
+    const xj=poly[j][0], yj=poly[j][1];
+    const hit = ((yi>pt.y)!==(yj>pt.y)) && (pt.x < (xj-xi)*(pt.y-yi)/(yj-yi)+xi);
+    if(hit) inside = !inside;
+  }
+  return inside;
+}
+
+function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function recommend(){
+  const remaining = dist(ball, PIN);
+  const statusEl = document.getElementById('statusLine');
+  statusEl.style.display = 'none';
+
+  if(remaining <= GREEN.r){
+    document.getElementById('recClub').textContent = 'On the green';
+    document.getElementById('shotYards').textContent = Math.round(remaining);
+    document.getElementById('remainYards').textContent = Math.round(remaining);
+    document.getElementById('shotYards').nextSibling.textContent = ' foot putt (approx.)';
+    drawTarget(PIN, ball);
+    return;
+  }
+  document.getElementById('shotYards').nextSibling.textContent = ' yard shot';
+
+  const ux = (PIN.x-ball.x)/remaining, uy = (PIN.y-ball.y)/remaining;
+  const ascending = [...clubs].sort((a,b)=>a.dist-b.dist);
+  const descending = [...clubs].sort((a,b)=>b.dist-a.dist);
+
+  // Prefer the shortest club that still comfortably covers the distance —
+  // avoids recommending driver just because it's long enough.
+  let chosen = null, target = null, laidUp = false;
+  for(const club of ascending){
+    if(club.dist >= remaining - 0.5){
+      chosen = club; target = PIN; break;
+    }
+  }
+
+  if(!chosen){
+    // Nothing reaches the pin from here — take the longest club that lands
+    // clear of hazards.
+    for(const club of descending){
+      const travel = Math.min(club.dist, remaining);
+      const candidate = {x: ball.x+ux*travel, y: ball.y+uy*travel};
+      const blocked = HAZARDS.some(h => pointInPoly(candidate, h.poly));
+      if(!blocked){ chosen = club; target = candidate; break; }
+      laidUp = true;
+    }
+    if(!chosen){
+      chosen = descending[descending.length-1];
+      const travel = Math.min(chosen.dist, remaining);
+      target = {x: ball.x+ux*travel, y: ball.y+uy*travel};
+    }
+  }
+
+  document.getElementById('recClub').textContent = chosen.name;
+  document.getElementById('shotYards').textContent = Math.round(dist(ball,target));
+  document.getElementById('remainYards').textContent = Math.round(remaining);
+
+  if(laidUp && target !== PIN){
+    statusEl.textContent = 'Longer clubs bring a hazard into play — laying up short of it.';
+    statusEl.style.display = 'block';
+  }
+
+  drawTarget(target, ball);
+}
+
+function drawTarget(target, from){
+  document.getElementById('shotLine').setAttribute('x1', from.x);
+  document.getElementById('shotLine').setAttribute('y1', from.y);
+  document.getElementById('shotLine').setAttribute('x2', target.x);
+  document.getElementById('shotLine').setAttribute('y2', target.y);
+  document.getElementById('targetDot').setAttribute('cx', target.x);
+  document.getElementById('targetDot').setAttribute('cy', target.y);
+  document.getElementById('ball').setAttribute('cx', from.x);
+  document.getElementById('ball').setAttribute('cy', from.y);
+}
+
+function renderClubInputs(){
+  const container = document.getElementById('clubInputs');
+  container.innerHTML = '';
+  clubs.forEach((club, i) => {
+    const label = document.createElement('label');
+    label.textContent = club.name;
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = club.dist;
+    input.min = 20; input.max = 350;
+    input.addEventListener('input', e => {
+      clubs[i].dist = parseFloat(e.target.value) || 0;
+      recommend();
+    });
+    container.appendChild(label);
+    container.appendChild(input);
+  });
+}
+
+function handleShot(x, y){
+  if(holed) return;
+  ball = {x: Math.max(0,Math.min(300,x)), y: Math.max(0,Math.min(460,y))};
+  strokeCount++;
+
+  const remaining = dist(ball, PIN);
+  if(remaining <= 2){
+    finishHole(strokeCount);
+    return;
+  }
+
+  updateStrokeUI();
+  recommend();
+}
+
+document.getElementById('hole').addEventListener('click', function(e){
+  const svg = this;
+  const pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const cursor = pt.matrixTransform(svg.getScreenCTM().inverse());
+  handleShot(cursor.x, cursor.y);
+});
+
+document.getElementById('strokeInput').addEventListener('input', function(e){
+  if(holed) return;
+  const v = parseInt(e.target.value);
+  strokeCount = isNaN(v) || v < 0 ? 0 : v;
+  document.getElementById('strokeRow').textContent = 'Shot ' + (strokeCount+1) + ' · Par ' + PAR;
+});
+
+document.getElementById('holedBtn').addEventListener('click', function(){
+  if(holed) return;
+  const v = parseInt(document.getElementById('strokeInput').value);
+  const finalStrokes = isNaN(v) || v <= 0 ? Math.max(strokeCount,1) : v;
+  finishHole(finalStrokes);
+});
+
+document.getElementById('resetBtn').addEventListener('click', function(){
+  ball = {x: TEE.x, y: TEE.y};
+  strokeCount = 0;
+  holed = false;
+  updateStrokeUI();
+  recommend();
+});
+
+renderClubInputs();
+updateStrokeUI();
+recommend();
+</script>
+</body>
+</html>
