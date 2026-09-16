@@ -1,0 +1,3 @@
+[submodule "geojson.io"]
+	path = geojson.io
+	url = https://github.com/mapbox/geojson.io.git
