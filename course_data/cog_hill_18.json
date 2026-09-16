@@ -1,0 +1,24 @@
+{
+  "course": "Cog Hill Golf & Country Club — Course No. 4 Dubsdread",
+  "hole": 18,
+  "par": 4,
+  "yardages": {
+    "Black": 494,
+    "Gold": 459,
+    "Blue": 431,
+    "Combo": 401,
+    "White": 401,
+    "Green": 374,
+    "Forward": 371
+  },
+  "courseCenter": [41.67926, -87.95253],
+  "geometry": {
+    "source": "OpenStreetMap-derived course geometry",
+    "geojson": "https://zommagolf.com/courses/il/course-4-dubsdread-at-cog-hill-golf-and-country-club/geo.json",
+    "note": "Geometry is traced from OpenStreetMap and is not survey-grade. The app loads this real geographic geometry rather than treating SVG pixels as yards."
+  },
+  "sources": [
+    "https://coghillgolf.com/course-no-4/",
+    "https://zommagolf.com/courses/il/course-4-dubsdread-at-cog-hill-golf-and-country-club"
+  ]
+}
