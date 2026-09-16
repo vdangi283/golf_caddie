@@ -1,0 +1,8 @@
+{
+  "course": "Cog Hill Golf & Country Club — Course No. 4 Dubsdread",
+  "hole": 18,
+  "units": "meters",
+  "status": "schema-ready",
+  "samples": [],
+  "note": "Elevation samples are intentionally empty until they are sourced from an elevation dataset/API. Do not fabricate terrain heights. app.js gracefully falls back to zero elevation adjustment when samples are absent."
+}
