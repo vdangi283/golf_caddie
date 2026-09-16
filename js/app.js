@@ -16,32 +16,21 @@ function belongsToHole(f,n=HOLE){return holeNumbers(f).includes(n)}
 function belongsOnlyToOtherHoles(f,n=HOLE){const h=holeNumbers(f);return h.length>0&&!h.includes(n)}
 function getFeatures(type,source=geojson){return(source.features||[]).filter(f=>featureType(f)===type)}
 function polyToScreen(f){const ring=polygonRings(f)[0];return ring?ring.map(([lng,lat])=>{const p=projection.project({lat,lng});return[p.x,p.y]}):[]}
-function pointSegmentDistanceYards(p,a,b){const lat0=(a.lat+b.lat)/2*Math.PI/180,sx=111320*Math.cos(lat0),sy=110540;const bx=(b.lng-a.lng)*sx,by=(b.lat-a.lat)*sy,px=(p.lng-a.lng)*sx,py=(p.lat-a.lat)*sy;const den=bx*bx+by*by||1,t=Math.max(0,Math.min(1,(px*bx+py*by)/den));return Math.hypot(px-t*bx,py-t*by)*1.0936133}
-function chooseBlackTeeAndGreen(exact){
-  const greens=exact.filter(f=>featureType(f)==='green').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c);
-  const tees=exact.filter(f=>featureType(f)==='tee').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c);
-  if(!greens.length)throw Error('Hole 18 has no tagged green');
-  if(!tees.length)throw Error('Hole 18 has no tagged tee');
-  let best=null;
-  for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c);if(d<250||d>600)continue;const score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}
-  if(!best){for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c),score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}}
-  return best;
-}
+function routeMetrics(p,a,b){const lat0=(a.lat+b.lat)/2*Math.PI/180,sx=111320*Math.cos(lat0),sy=110540;const bx=(b.lng-a.lng)*sx,by=(b.lat-a.lat)*sy,px=(p.lng-a.lng)*sx,py=(p.lat-a.lat)*sy;const den=bx*bx+by*by||1,raw=(px*bx+py*by)/den,t=Math.max(0,Math.min(1,raw));return{along:raw,crossYards:Math.hypot(px-t*bx,py-t*by)*1.0936133}}
+function featureRouteMetrics(f,a,b){const rings=polygonRings(f),samples=[];for(const ring of rings){for(const p of ring){if(Array.isArray(p)&&p.length>=2)samples.push({lng:p[0],lat:p[1]})}}const c=geometryCenter(f);if(c)samples.push(c);if(!samples.length)return null;const ms=samples.map(p=>routeMetrics(p,a,b));return{minCross:Math.min(...ms.map(m=>m.crossYards)),maxCross:Math.max(...ms.map(m=>m.crossYards)),minAlong:Math.min(...ms.map(m=>m.along)),maxAlong:Math.max(...ms.map(m=>m.along))}}
+function chooseBlackTeeAndGreen(exact){const greens=exact.filter(f=>featureType(f)==='green').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c),tees=exact.filter(f=>featureType(f)==='tee').map(f=>({f,c:geometryCenter(f)})).filter(x=>x.c);if(!greens.length)throw Error('Hole 18 has no tagged green');if(!tees.length)throw Error('Hole 18 has no tagged tee');let best=null;for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c);if(d<250||d>600)continue;const score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}if(!best){for(const t of tees)for(const g of greens){const d=distanceYards(t.c,g.c),score=Math.abs(d-course.yardages.Black);if(!best||score<best.score)best={t,g,d,score}}}return best}
+function relevantToPlayingRoute(f,best){const type=featureType(f);if(f===best.t.f||f===best.g.f)return true;const m=featureRouteMetrics(f,tee,pin);if(!m)return false;const overlapsHoleLength=m.maxAlong>=-0.06&&m.minAlong<=1.06;if(!overlapsHoleLength)return false;if(type==='tee')return m.minCross<=45&&m.maxAlong<=0.18;if(type==='green')return m.minCross<=55&&m.minAlong>=0.78;if(type==='fairway'||type==='rough')return m.minCross<=95;if(type==='bunker')return m.minCross<=85;if(type==='water')return m.minCross<=110;return false}
 function deriveHole18(){
-  const features=geojson.features||[];
-  const exact=features.filter(f=>belongsToHole(f));
+  const features=geojson.features||[],exact=features.filter(f=>belongsToHole(f));
   if(!exact.length)throw Error('Local GeoJSON contains no features tagged for Hole 18');
   const best=chooseBlackTeeAndGreen(exact);tee=best.t.c;pin=best.g.c;
-  // Primary map geometry comes ONLY from explicit Hole 18 membership.
-  const explicit=exact.filter(f=>['rough','fairway','green','tee','bunker','water'].includes(featureType(f)));
-  // Some hazards are intentionally unassigned in the source. Add only untagged hazards
-  // close to the Hole 18 tee-to-green playing corridor. Never borrow a feature tagged to another hole.
-  const supplemental=features.filter(f=>{
-    if(belongsToHole(f)||belongsOnlyToOtherHoles(f))return false;
-    const type=featureType(f);if(!['bunker','water'].includes(type))return false;
-    const c=geometryCenter(f);if(!c)return false;
-    return pointSegmentDistanceYards(c,tee,pin)<=70&&distanceYards(c,tee)<=575&&distanceYards(c,pin)<=575;
-  });
+  // Anchor the display to the validated ~490-yard black-tee -> green route. A feature must
+  // both belong to Hole 18 and physically touch that playing corridor; this drops the
+  // disconnected clusters that the source also labels as Hole 18.
+  const explicit=exact.filter(f=>['rough','fairway','green','tee','bunker','water'].includes(featureType(f))&&relevantToPlayingRoute(f,best));
+  // Untagged hazards can still be part of the hole. Include only hazards touching the route,
+  // while never borrowing geometry explicitly assigned to another hole.
+  const supplemental=features.filter(f=>{if(belongsToHole(f)||belongsOnlyToOtherHoles(f))return false;const type=featureType(f);return ['bunker','water'].includes(type)&&relevantToPlayingRoute(f,best)});
   const unique=[...new Map([...explicit,...supplemental].map(f=>[f.properties?.feature_id||f.properties?.osm_id||JSON.stringify(f.geometry),f])).values()];
   return{tee,pin,features:unique,straightLineYards:best.d};
 }
